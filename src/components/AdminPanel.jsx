@@ -381,14 +381,14 @@ export default function AdminPanel({
   }
 
   // Garantizar arreglos seguros y prevención de nulos
-  const safeOrders = Array.isArray(orders) ? orders : [];
-  const safeDrivers = Array.isArray(drivers) ? drivers : [];
-  const safeProducts = Array.isArray(products) ? products : [];
+  const safeOrders = (Array.isArray(orders) ? orders : []).filter(Boolean);
+  const safeDrivers = (Array.isArray(drivers) ? drivers : []).filter(Boolean);
+  const safeProducts = (Array.isArray(products) ? products : []).filter(Boolean);
 
   // Filtrado de pedidos
   const filteredOrders = orderFilter === 'Todos' 
     ? safeOrders 
-    : safeOrders.filter(o => o.status === orderFilter);
+    : safeOrders.filter(o => o && o.status === orderFilter);
 
   // Marcadores de Mapa
   const baseLat = config?.baseCoords?.lat || -34.5932;
@@ -396,8 +396,8 @@ export default function AdminPanel({
 
   const mapMarkers = [
     { type: 'store', lat: baseLat, lng: baseLng, title: `${config?.storeName || 'Comercio'} (Local Base)` },
-    ...safeDrivers.map(d => ({ type: 'driver', lat: d.lat, lng: d.lng, title: `Repartidor: ${d.name}`, popup: `Tel: ${d.phone} | Estado: ${d.status}` })),
-    ...safeOrders.map(o => ({ type: 'customer', lat: o.lat, lng: o.lng, title: `Pedido ${o.id}: ${o.customerName}`, popup: `${o.address} | Status: ${o.status}` }))
+    ...safeDrivers.map(d => ({ type: 'driver', lat: d?.lat || baseLat, lng: d?.lng || baseLng, title: `Repartidor: ${d?.name || ''}`, popup: `Tel: ${d?.phone || ''} | Estado: ${d?.status || ''}` })),
+    ...safeOrders.map(o => ({ type: 'customer', lat: o?.lat || baseLat, lng: o?.lng || baseLng, title: `Pedido ${o?.id || ''}: ${o?.customerName || ''}`, popup: `${o?.address || ''} | Status: ${o?.status || ''}` }))
   ];
 
   return (
