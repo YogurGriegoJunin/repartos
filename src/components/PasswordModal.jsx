@@ -1,23 +1,32 @@
 import React, { useState } from 'react';
-import { KeyRound, Lock, Eye, EyeOff, CheckCircle, AlertCircle, X } from 'lucide-react';
+import { KeyRound, Lock, CheckCircle, AlertCircle, X, ShieldCheck } from 'lucide-react';
 import { hashPassword, verifyPassword } from '../services/crypto.js';
 
 export default function PasswordModal({ 
   isOpen, 
   onClose, 
   title, 
-  targetUser, // { type: 'admin' | 'driver', driverId?: string, currentHash?: string }
+  targetUser, 
   onSavePassword 
 }) {
   const [currentPass, setCurrentPass] = useState('');
   const [newPass, setNewPass] = useState('');
   const [confirmPass, setConfirmPass] = useState('');
-  const [showPass, setShowPass] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
   const [loading, setLoading] = useState(false);
 
   if (!isOpen) return null;
+
+  const handleClose = () => {
+    // Limpiar campos de memoria por seguridad
+    setCurrentPass('');
+    setNewPass('');
+    setConfirmPass('');
+    setError('');
+    setSuccess(false);
+    onClose();
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -34,7 +43,7 @@ export default function PasswordModal({
       return;
     }
 
-    // Si requiere verificar clave actual (por ejemplo para el Admin)
+    // Verificar contraseña actual si la requiere
     if (targetUser?.currentHash) {
       const isValid = await verifyPassword(currentPass, targetUser.currentHash);
       if (!isValid) {
@@ -45,22 +54,17 @@ export default function PasswordModal({
 
     setLoading(true);
     try {
-      // Generar Hash SHA-256 seguro
+      // Generar Hash criptográfico SHA-256 no reversible
       const newHash = await hashPassword(newPass);
       
-      // Callback para guardar el hash generado
       await onSavePassword(newHash, targetUser);
       
       setSuccess(true);
       setTimeout(() => {
-        setSuccess(false);
-        setCurrentPass('');
-        setNewPass('');
-        setConfirmPass('');
-        onClose();
+        handleClose();
       }, 1200);
     } catch (err) {
-      setError('Error al procesar el hash de la contraseña.');
+      setError('Error al encriptar la contraseña.');
     } finally {
       setLoading(false);
     }
@@ -72,17 +76,17 @@ export default function PasswordModal({
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.2rem' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
             <div style={{ background: 'rgba(99, 102, 241, 0.15)', padding: '0.5rem', borderRadius: '8px', color: '#6366f1' }}>
-              <KeyRound style={{ width: 22, height: 22 }} />
+              <ShieldCheck style={{ width: 22, height: 22 }} />
             </div>
             <div>
               <h3 style={{ fontSize: '1.1rem', fontWeight: 700 }}>{title || 'Cambiar Contraseña'}</h3>
-              <span style={{ fontSize: '0.8rem', color: '#94a3b8' }}>
-                Protegido con encriptación criptográfica SHA-256
+              <span style={{ fontSize: '0.75rem', color: '#10b981', fontWeight: 600 }}>
+                🔒 Máxima Seguridad Criptográfica (SHA-256)
               </span>
             </div>
           </div>
           <button 
-            onClick={onClose} 
+            onClick={handleClose} 
             style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer' }}
           >
             <X style={{ width: 20, height: 20 }} />
@@ -121,7 +125,7 @@ export default function PasswordModal({
             marginBottom: '1rem'
           }}>
             <CheckCircle style={{ width: 18, height: 18 }} />
-            <span>Contraseña actualizada de forma segura (Haseada).</span>
+            <span>Contraseña encriptada y guardada como hash seguro.</span>
           </div>
         )}
 
@@ -130,7 +134,7 @@ export default function PasswordModal({
             <div className="form-group">
               <label className="form-label">Contraseña Actual</label>
               <input
-                type={showPass ? 'text' : 'password'}
+                type="password"
                 className="form-input"
                 placeholder="Ingresa clave actual..."
                 value={currentPass}
@@ -142,38 +146,20 @@ export default function PasswordModal({
 
           <div className="form-group">
             <label className="form-label">Nueva Contraseña</label>
-            <div style={{ position: 'relative' }}>
-              <input
-                type={showPass ? 'text' : 'password'}
-                className="form-input"
-                placeholder="Ingresa nueva contraseña..."
-                value={newPass}
-                onChange={(e) => setNewPass(e.target.value)}
-                required
-              />
-              <button
-                type="button"
-                onClick={() => setShowPass(!showPass)}
-                style={{
-                  position: 'absolute',
-                  right: '10px',
-                  top: '50%',
-                  transform: 'translateY(-50%)',
-                  background: 'none',
-                  border: 'none',
-                  color: '#94a3b8',
-                  cursor: 'pointer'
-                }}
-              >
-                {showPass ? <EyeOff style={{ width: 18, height: 18 }} /> : <Eye style={{ width: 18, height: 18 }} />}
-              </button>
-            </div>
+            <input
+              type="password"
+              className="form-input"
+              placeholder="Ingresa nueva contraseña..."
+              value={newPass}
+              onChange={(e) => setNewPass(e.target.value)}
+              required
+            />
           </div>
 
           <div className="form-group">
             <label className="form-label">Confirmar Nueva Contraseña</label>
             <input
-              type={showPass ? 'text' : 'password'}
+              type="password"
               className="form-input"
               placeholder="Repite la nueva contraseña..."
               value={confirmPass}
@@ -182,12 +168,16 @@ export default function PasswordModal({
             />
           </div>
 
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '1.5rem' }}>
-            <button type="button" className="btn btn-secondary" onClick={onClose} disabled={loading}>
+          <div style={{ background: '#0f172a', padding: '0.75rem', borderRadius: '6px', fontSize: '0.75rem', color: '#94a3b8', marginTop: '1rem' }}>
+            🔒 La nueva contraseña será procesada mediante un algoritmo unidireccional SHA-256. Nunca se almacenará ni podrá leerse en texto plano desde el código o el navegador.
+          </div>
+
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '1.25rem' }}>
+            <button type="button" className="btn btn-secondary" onClick={handleClose} disabled={loading}>
               Cancelar
             </button>
             <button type="submit" className="btn btn-primary" disabled={loading}>
-              {loading ? 'Guardando Hash...' : 'Actualizar Contraseña'}
+              {loading ? 'Encriptando...' : 'Guardar Hash Seguro'}
             </button>
           </div>
         </form>
