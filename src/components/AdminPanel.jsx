@@ -23,8 +23,10 @@ export default function AdminPanel({
   onSaveConfig,
   onReloadFullSystem
 }) {
-  // Estado de Autenticación de Admin
-  const [isAdminAuthenticated, setIsAdminAuthenticated] = useState(false);
+  // Estado de Autenticación de Admin con persistencia de sesión
+  const [isAdminAuthenticated, setIsAdminAuthenticated] = useState(() => {
+    return typeof window !== 'undefined' && sessionStorage.getItem('admin_session_v1') === 'true';
+  });
   const [adminLoginPass, setAdminLoginPass] = useState('');
   const [loginError, setLoginError] = useState('');
 
@@ -89,16 +91,21 @@ export default function AdminPanel({
   const [backupMessage, setBackupMessage] = useState({ type: '', text: '' });
   const fileInputRef = useRef(null);
 
-  // Login de Administrador
+  // Login de Administrador con persistencia de sesión
   const handleAdminLogin = async (e) => {
     e.preventDefault();
     setLoginError('');
-    const isValid = await verifyPassword(adminLoginPass, adminHash);
-    if (isValid) {
-      setIsAdminAuthenticated(true);
-      setAdminLoginPass('');
-    } else {
-      setLoginError('Contraseña de Administrador incorrecta.');
+    try {
+      const isValid = await verifyPassword(adminLoginPass, adminHash);
+      if (isValid) {
+        setIsAdminAuthenticated(true);
+        sessionStorage.setItem('admin_session_v1', 'true');
+        setAdminLoginPass('');
+      } else {
+        setLoginError('Contraseña de Administrador incorrecta.');
+      }
+    } catch (err) {
+      setLoginError('Error de verificación. Haz clic en restablecer clave si es necesario.');
     }
   };
 
@@ -431,27 +438,27 @@ export default function AdminPanel({
         </div>
       </div>
 
-      {/* Tabs */}
+      {/* Tabs con Arreglos Seguros safeOrders, safeDrivers, safeProducts */}
       <div className="tabs-container">
         <button
           className={`tab-btn ${activeTab === 'pedidos' ? 'active' : ''}`}
           onClick={() => setActiveTab('pedidos')}
         >
-          📦 Pedidos ({orders.length})
+          📦 Pedidos ({safeOrders.length})
         </button>
 
         <button
           className={`tab-btn ${activeTab === 'repartidores' ? 'active' : ''}`}
           onClick={() => setActiveTab('repartidores')}
         >
-          🛵 Repartidores ({drivers.length})
+          🛵 Repartidores ({safeDrivers.length})
         </button>
 
         <button
           className={`tab-btn ${activeTab === 'productos' ? 'active' : ''}`}
           onClick={() => setActiveTab('productos')}
         >
-          🏷️ Productos ({products.length})
+          🏷️ Productos ({safeProducts.length})
         </button>
 
         <button
