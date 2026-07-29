@@ -3,6 +3,7 @@ import Navbar from './components/Navbar.jsx';
 import AdminPanel from './components/AdminPanel.jsx';
 import DriverPanel from './components/DriverPanel.jsx';
 import CustomerTracking from './components/CustomerTracking.jsx';
+import ErrorBoundary from './components/ErrorBoundary.jsx';
 import { 
   initializeStorage, 
   getDrivers, 
@@ -28,7 +29,7 @@ export default function App() {
   const [adminHash, setAdminHashState] = useState('');
   const [config, setConfigState] = useState({});
 
-  // Inicialización de Almacenamiento Local y Semillas
+  // Inicialización de Almacenamiento Local y Semillas con manejo seguro
   useEffect(() => {
     async function loadData() {
       try {
@@ -93,52 +94,54 @@ export default function App() {
   }
 
   return (
-    <div style={{ minHeight: '100vh', background: 'var(--bg-main)', color: 'var(--text-main)' }}>
-      <Navbar 
-        activeRole={activeRole} 
-        setActiveRole={setActiveRole} 
-        config={config}
-      />
+    <ErrorBoundary>
+      <div style={{ minHeight: '100vh', background: 'var(--bg-main)', color: 'var(--text-main)' }}>
+        <Navbar 
+          activeRole={activeRole} 
+          setActiveRole={setActiveRole} 
+          config={config}
+        />
 
-      <main className="app-container">
-        {errorMsg && (
-          <div style={{ background: 'rgba(239,68,68,0.2)', border: '1px solid #ef4444', color: '#ef4444', padding: '1rem', borderRadius: '8px', marginBottom: '1rem' }}>
-            {errorMsg}
-          </div>
-        )}
+        <main className="app-container">
+          {errorMsg && (
+            <div style={{ background: 'rgba(239,68,68,0.2)', border: '1px solid #ef4444', color: '#ef4444', padding: '1rem', borderRadius: '8px', marginBottom: '1rem' }}>
+              {errorMsg}
+            </div>
+          )}
 
-        {activeRole === 'admin' && (
-          <AdminPanel
-            drivers={drivers}
-            products={products}
-            orders={orders}
-            adminHash={adminHash}
-            config={config}
-            onSaveDrivers={handleSaveDrivers}
-            onSaveProducts={handleSaveProducts}
-            onSaveOrders={handleSaveOrders}
-            onSaveAdminHash={handleSaveAdminHash}
-            onSaveConfig={handleSaveConfig}
-            onReloadFullSystem={handleReloadFullSystem}
-          />
-        )}
+          {activeRole === 'admin' && (
+            <AdminPanel
+              drivers={drivers}
+              products={products}
+              orders={orders}
+              adminHash={adminHash}
+              config={config}
+              onSaveDrivers={handleSaveDrivers}
+              onSaveProducts={handleSaveProducts}
+              onSaveOrders={handleSaveOrders}
+              onSaveAdminHash={handleSaveAdminHash}
+              onSaveConfig={handleSaveConfig}
+              onReloadFullSystem={handleReloadFullSystem}
+            />
+          )}
 
-        {activeRole === 'driver' && (
-          <DriverPanel
-            drivers={drivers}
-            orders={orders}
-            config={config}
-            onSaveOrders={handleSaveOrders}
-          />
-        )}
+          {activeRole === 'driver' && (
+            <DriverPanel
+              drivers={drivers}
+              orders={orders}
+              config={config}
+              onSaveOrders={handleSaveOrders}
+            />
+          )}
 
-        {activeRole === 'customer' && (
-          <CustomerTracking
-            orders={orders}
-            drivers={drivers}
-          />
-        )}
-      </main>
-    </div>
+          {activeRole === 'customer' && (
+            <CustomerTracking
+              orders={orders}
+              drivers={drivers}
+            />
+          )}
+        </main>
+      </div>
+    </ErrorBoundary>
   );
 }
