@@ -127,6 +127,7 @@ export default function App() {
           <DriverPanel
             drivers={drivers}
             orders={orders}
+            config={config}
             onSaveOrders={handleSaveOrders}
           />
         )}

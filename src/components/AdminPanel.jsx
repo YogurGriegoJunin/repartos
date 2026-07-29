@@ -2,12 +2,13 @@ import React, { useState, useRef } from 'react';
 import { 
   Users, ShoppingBag, Truck, ShieldCheck, Plus, Trash2, Edit3, KeyRound, 
   MapPin, CheckCircle, Clock, AlertTriangle, Phone, LogIn, Lock, Sparkles, Filter,
-  Download, Upload, RefreshCw, Database, Store, DollarSign, Award, UserCheck, PackageCheck
+  Download, Upload, RefreshCw, Database, Store, DollarSign, Award, UserCheck, PackageCheck, MessageSquare
 } from 'lucide-react';
 import DeliveryMap from './DeliveryMap.jsx';
 import PasswordModal from './PasswordModal.jsx';
 import { verifyPassword, hashPassword } from '../services/crypto.js';
 import { exportFullBackup, importFullBackup, createTenantConfig } from '../services/storage.js';
+import { generateOrderWhatsAppLink } from '../services/whatsapp.js';
 
 export default function AdminPanel({
   drivers,
@@ -690,7 +691,18 @@ export default function AdminPanel({
                     </div>
                   </div>
 
-                  <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <a 
+                      href={generateOrderWhatsAppLink(order, driver, config)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="btn btn-sm"
+                      style={{ background: '#25D366', color: '#fff', fontWeight: 700 }}
+                    >
+                      <MessageSquare style={{ width: 14, height: 14 }} />
+                      <span>Notificar por WhatsApp</span>
+                    </a>
+
                     <button 
                       className="btn btn-danger btn-sm"
                       onClick={() => handleDeleteOrder(order.id)}

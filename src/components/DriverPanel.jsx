@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { Truck, CheckCircle2, Navigation, Phone, MapPin, Package, LogIn, Lock, AlertCircle } from 'lucide-react';
+import { Truck, CheckCircle2, Navigation, Phone, MapPin, Package, LogIn, Lock, AlertCircle, MessageSquare } from 'lucide-react';
 import { verifyPassword } from '../services/crypto.js';
+import { generateOrderWhatsAppLink } from '../services/whatsapp.js';
 import DeliveryMap from './DeliveryMap.jsx';
 
 export default function DriverPanel({ drivers, orders, onSaveOrders }) {
@@ -180,8 +181,21 @@ export default function DriverPanel({ drivers, orders, onSaveOrders }) {
                   </div>
                 </div>
 
-                {/* Acciones de entrega */}
+                {/* Acciones de entrega y notificación WhatsApp */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                  
+                  {/* Botón WhatsApp */}
+                  <a 
+                    href={generateOrderWhatsAppLink(order, authenticatedDriver, config)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="btn btn-sm"
+                    style={{ background: '#25D366', color: '#fff', fontWeight: 700, width: '100%' }}
+                  >
+                    <MessageSquare style={{ width: 16, height: 16 }} />
+                    <span>Avisar "En Camino" por WhatsApp</span>
+                  </a>
+
                   <a 
                     href={googleMapsUrl} 
                     target="_blank" 
@@ -196,10 +210,14 @@ export default function DriverPanel({ drivers, orders, onSaveOrders }) {
                   {order.status === 'Pendiente' && (
                     <button 
                       className="btn btn-primary btn-sm" 
-                      onClick={() => handleUpdateStatus(order.id, 'En Camino')}
+                      onClick={() => {
+                        handleUpdateStatus(order.id, 'En Camino');
+                        // Abrir WhatsApp automáticamente al pasar a En Camino
+                        window.open(generateOrderWhatsAppLink(order, authenticatedDriver, config), '_blank');
+                      }}
                     >
                       <Truck style={{ width: 16, height: 16 }} />
-                      <span>Iniciar "En Camino"</span>
+                      <span>Iniciar "En Camino" y Notificar</span>
                     </button>
                   )}
 
