@@ -2,30 +2,32 @@ import React, { useState, useRef } from 'react';
 import { 
   Users, ShoppingBag, Truck, ShieldCheck, Plus, Trash2, Edit3, KeyRound, 
   MapPin, CheckCircle, Clock, AlertTriangle, Phone, LogIn, Lock, Sparkles, Filter,
-  Download, Upload, RefreshCw, Database
+  Download, Upload, RefreshCw, Database, Store, DollarSign, Award, UserCheck, PackageCheck
 } from 'lucide-react';
 import DeliveryMap from './DeliveryMap.jsx';
 import PasswordModal from './PasswordModal.jsx';
 import { verifyPassword, hashPassword } from '../services/crypto.js';
-import { exportFullBackup, importFullBackup } from '../services/storage.js';
+import { exportFullBackup, importFullBackup, createTenantConfig } from '../services/storage.js';
 
 export default function AdminPanel({
   drivers,
   products,
   orders,
   adminHash,
+  config,
   onSaveDrivers,
   onSaveProducts,
   onSaveOrders,
   onSaveAdminHash,
-  onReloadFullSystem // Callback opcional para refrescar todo el sistema
+  onSaveConfig,
+  onReloadFullSystem
 }) {
   // Estado de Autenticación de Admin
   const [isAdminAuthenticated, setIsAdminAuthenticated] = useState(false);
   const [adminLoginPass, setAdminLoginPass] = useState('');
   const [loginError, setLoginError] = useState('');
 
-  // Pestaña activa en Admin (pedidos | repartidores | productos | mapa | backup)
+  // Pestaña activa (pedidos | repartidores | productos | mapa | backup | saas)
   const [activeTab, setActiveTab] = useState('pedidos');
 
   // Modales
@@ -45,8 +47,8 @@ export default function AdminPanel({
     customerName: '',
     customerPhone: '',
     address: '',
-    lat: -34.5932,
-    lng: -60.9472,
+    lat: config?.baseCoords?.lat || -34.5932,
+    lng: config?.baseCoords?.lng || -60.9472,
     driverId: '',
     items: [],
     notes: ''
@@ -54,6 +56,32 @@ export default function AdminPanel({
   const [selectedProdId, setSelectedProdId] = useState('');
   const [selectedProdQty, setSelectedProdQty] = useState(1);
   const [showOrderForm, setShowOrderForm] = useState(false);
+
+  // Formulario de Configuración de Comercio (White-Label)
+  const [storeForm, setStoreForm] = useState({
+    storeName: config?.storeName || '',
+    tagline: config?.tagline || '',
+    phone: config?.phone || '',
+    address: config?.address || '',
+    currencySymbol: config?.currencySymbol || '$',
+    lat: config?.baseCoords?.lat || -34.5932,
+    lng: config?.baseCoords?.lng || -60.9472,
+    licensePlan: config?.licensePlan || 'Plan Comercial Pro'
+  });
+  const [configSaveMsg, setConfigSaveMsg] = useState('');
+
+  // Formulario Creación de Nuevo Comercio para Cliente (Vender App)
+  const [newTenantForm, setNewTenantForm] = useState({
+    storeName: '',
+    tagline: '',
+    phone: '',
+    address: '',
+    currencySymbol: '$',
+    lat: -34.5932,
+    lng: -60.9472,
+    adminPassword: '',
+    licensePlan: 'Plan Mensual ($15.000 / mes)'
+  });
 
   // Filtros y Respaldos
   const [orderFilter, setOrderFilter] = useState('Todos');
@@ -87,8 +115,8 @@ export default function AdminPanel({
       vehicle: newDriver.vehicle || 'Vehículo Particular',
       status: 'Disponible',
       passwordHash,
-      lat: -34.5932 + (Math.random() - 0.5) * 0.02,
-      lng: -60.9472 + (Math.random() - 0.5) * 0.02
+      lat: (config?.baseCoords?.lat || -34.5932) + (Math.random() - 0.5) * 0.02,
+      lng: (config?.baseCoords?.lng || -60.9472) + (Math.random() - 0.5) * 0.02
     };
 
     onSaveDrivers([...drivers, createdDriver]);
@@ -165,8 +193,8 @@ export default function AdminPanel({
       customerName: newOrder.customerName,
       customerPhone: newOrder.customerPhone,
       address: newOrder.address,
-      lat: -34.5932 + (Math.random() - 0.5) * 0.03,
-      lng: -60.9472 + (Math.random() - 0.5) * 0.03,
+      lat: (config?.baseCoords?.lat || -34.5932) + (Math.random() - 0.5) * 0.03,
+      lng: (config?.baseCoords?.lng || -60.9472) + (Math.random() - 0.5) * 0.03,
       items: newOrder.items,
       total,
       driverId: newOrder.driverId || (drivers[0] ? drivers[0].id : ''),
@@ -180,8 +208,8 @@ export default function AdminPanel({
       customerName: '',
       customerPhone: '',
       address: '',
-      lat: -34.5932,
-      lng: -60.9472,
+      lat: config?.baseCoords?.lat || -34.5932,
+      lng: config?.baseCoords?.lng || -60.9472,
       driverId: '',
       items: [],
       notes: ''
@@ -205,6 +233,51 @@ export default function AdminPanel({
     }
   };
 
+  // --- SAAS: GUARDAR CONFIGURACIÓN DE MARCA DEL COMERCIO ---
+  const handleSaveStoreConfig = (e) => {
+    e.preventDefault();
+    const updatedConfig = {
+      ...config,
+      storeName: storeForm.storeName,
+      tagline: storeForm.tagline,
+      phone: storeForm.phone,
+      address: storeForm.address,
+      currencySymbol: storeForm.currencySymbol,
+      baseCoords: { lat: parseFloat(storeForm.lat), lng: parseFloat(storeForm.lng) },
+      licensePlan: storeForm.licensePlan
+    };
+
+    onSaveConfig(updatedConfig);
+    setConfigSaveMsg('¡Configuración de marca y comercio guardada exitosamente!');
+    setTimeout(() => setConfigSaveMsg(''), 3000);
+  };
+
+  // --- SAAS: CREAR Y EXPORTAR INSTANCIA PARA UN NUEVO CLIENTE ---
+  const handleCreateNewTenantClient = async (e) => {
+    e.preventDefault();
+    if (!newTenantForm.storeName || !newTenantForm.adminPassword) return;
+
+    if (window.confirm(`¿Crear e instalar la aplicación para el nuevo cliente "${newTenantForm.storeName}"?`)) {
+      const newConfig = await createTenantConfig(newTenantForm);
+      onSaveConfig(newConfig);
+      if (onReloadFullSystem) onReloadFullSystem();
+
+      alert(`¡Instancia creada con éxito para ${newTenantForm.storeName}! Se ha reconfigurado el sistema con el nuevo comercio.`);
+      setNewTenantForm({
+        storeName: '',
+        tagline: '',
+        phone: '',
+        address: '',
+        currencySymbol: '$',
+        lat: -34.5932,
+        lng: -60.9472,
+        adminPassword: '',
+        licensePlan: 'Plan Mensual ($15.000 / mes)'
+      });
+      window.location.reload();
+    }
+  };
+
   // --- BACKUP & RESTAURACIÓN ---
   const handleDownloadBackup = () => {
     try {
@@ -216,7 +289,7 @@ export default function AdminPanel({
       const dateStr = new Date().toISOString().split('T')[0];
       const link = document.createElement('a');
       link.href = url;
-      link.download = `backup_logistica_junin_${dateStr}.json`;
+      link.download = `backup_${config?.storeName?.toLowerCase().replace(/\s+/g, '_')}_${dateStr}.json`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -267,7 +340,7 @@ export default function AdminPanel({
           </div>
           <h2 style={{ fontSize: '1.4rem', fontWeight: 800, marginBottom: '0.4rem' }}>Panel Administrador</h2>
           <p style={{ fontSize: '0.85rem', color: '#94a3b8', marginBottom: '1.5rem' }}>
-            Ingresa tu contraseña de administrador para gestionar repartos, repartidores e ítems.
+            {config?.storeName || 'Comercio'} - Ingresa tu contraseña de administrador.
           </p>
 
           {loginError && (
@@ -305,8 +378,11 @@ export default function AdminPanel({
     : orders.filter(o => o.status === orderFilter);
 
   // Marcadores de Mapa
+  const baseLat = config?.baseCoords?.lat || -34.5932;
+  const baseLng = config?.baseCoords?.lng || -60.9472;
+
   const mapMarkers = [
-    { type: 'store', lat: -34.5932, lng: -60.9472, title: 'Yogur Griego Junín (Local Base)', popup: 'Centro de Salida' },
+    { type: 'store', lat: baseLat, lng: baseLng, title: `${config?.storeName || 'Comercio'} (Local Base)` },
     ...drivers.map(d => ({ type: 'driver', lat: d.lat, lng: d.lng, title: `Repartidor: ${d.name}`, popup: `Tel: ${d.phone} | Estado: ${d.status}` })),
     ...orders.map(o => ({ type: 'customer', lat: o.lat, lng: o.lng, title: `Pedido ${o.id}: ${o.customerName}`, popup: `${o.address} | Status: ${o.status}` }))
   ];
@@ -314,15 +390,17 @@ export default function AdminPanel({
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
       
-      {/* Admin Top Actions & Tabs */}
+      {/* Admin Top Header */}
       <div className="glass-panel" style={{ padding: '1rem 1.5rem', display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '1rem' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
           <div style={{ background: 'rgba(99,102,241,0.15)', color: '#6366f1', padding: '0.6rem', borderRadius: '10px' }}>
-            <ShieldCheck style={{ width: 22, height: 22 }} />
+            <Store style={{ width: 22, height: 22 }} />
           </div>
           <div>
-            <h2 style={{ fontSize: '1.2rem', fontWeight: 700 }}>Administración Central</h2>
-            <span style={{ fontSize: '0.8rem', color: '#94a3b8' }}>Logística de Envíos & Respaldos</span>
+            <h2 style={{ fontSize: '1.2rem', fontWeight: 700 }}>{config?.storeName || 'Panel Administrador'}</h2>
+            <span style={{ fontSize: '0.8rem', color: '#10b981', fontWeight: 600 }}>
+              {config?.licensePlan || 'Licencia Comercial Activa'}
+            </span>
           </div>
         </div>
 
@@ -381,7 +459,14 @@ export default function AdminPanel({
           className={`tab-btn ${activeTab === 'backup' ? 'active' : ''}`}
           onClick={() => setActiveTab('backup')}
         >
-          💾 Respaldos & Copia de Seguridad
+          💾 Respaldos
+        </button>
+
+        <button
+          className={`tab-btn ${activeTab === 'saas' ? 'active' : ''}`}
+          onClick={() => setActiveTab('saas')}
+        >
+          💼 Vender App / Configurar Comercio
         </button>
       </div>
 
@@ -414,7 +499,6 @@ export default function AdminPanel({
             </button>
           </div>
 
-          {/* Formulario Crear Pedido */}
           {showOrderForm && (
             <div className="card" style={{ marginBottom: '1.5rem', border: '1px solid var(--primary)' }}>
               <h3 style={{ fontSize: '1.05rem', fontWeight: 700, marginBottom: '1rem', color: '#6366f1' }}>Nuevo Pedido de Cliente</h3>
@@ -451,7 +535,7 @@ export default function AdminPanel({
                     <input
                       type="text"
                       className="form-input"
-                      placeholder="Ej: Av. San Martín 450, Junín"
+                      placeholder="Ej: Av. San Martín 450"
                       value={newOrder.address}
                       onChange={(e) => setNewOrder({ ...newOrder, address: e.target.value })}
                       required
@@ -473,7 +557,6 @@ export default function AdminPanel({
                   </div>
                 </div>
 
-                {/* Agregar Ítems al Pedido */}
                 <div style={{ background: '#0f172a', padding: '1rem', borderRadius: '8px', marginBottom: '1rem' }}>
                   <label className="form-label" style={{ marginBottom: '0.5rem', display: 'block' }}>Agregar Productos al Pedido</label>
                   <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
@@ -485,7 +568,7 @@ export default function AdminPanel({
                     >
                       <option value="">-- Seleccionar Producto del Catálogo --</option>
                       {products.map(p => (
-                        <option key={p.id} value={p.id}>{p.name} - ${p.price}</option>
+                        <option key={p.id} value={p.id}>{p.name} - {config?.currencySymbol || '$'}{p.price}</option>
                       ))}
                     </select>
 
@@ -511,14 +594,14 @@ export default function AdminPanel({
                           <li key={item.productId} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', padding: '0.25rem 0', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
                             <span>{item.quantity}x {item.name}</span>
                             <div>
-                              <strong style={{ marginRight: '0.75rem' }}>${item.quantity * item.unitPrice}</strong>
+                              <strong style={{ marginRight: '0.75rem' }}>{config?.currencySymbol || '$'}{item.quantity * item.unitPrice}</strong>
                               <button type="button" onClick={() => handleRemoveItemFromNewOrder(item.productId)} style={{ color: '#ef4444', background: 'none', border: 'none', cursor: 'pointer' }}>✕</button>
                             </div>
                           </li>
                         ))}
                       </ul>
                       <div style={{ textAlign: 'right', marginTop: '0.5rem', fontWeight: 700, color: '#10b981' }}>
-                        Total: ${newOrder.items.reduce((acc, curr) => acc + (curr.unitPrice * curr.quantity), 0)}
+                        Total: {config?.currencySymbol || '$'}{newOrder.items.reduce((acc, curr) => acc + (curr.unitPrice * curr.quantity), 0)}
                       </div>
                     </div>
                   )}
@@ -536,10 +619,8 @@ export default function AdminPanel({
             </div>
           )}
 
-          {/* Lista de Pedidos */}
           <div className="grid-2">
             {filteredOrders.map(order => {
-              const driver = drivers.find(d => d.id === order.driverId);
               const statusBadgeClass = 
                 order.status === 'Pendiente' ? 'badge-pendiente' :
                 order.status === 'En Camino' ? 'badge-encamino' :
@@ -569,11 +650,11 @@ export default function AdminPanel({
                     {order.items.map((it, idx) => (
                       <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', color: '#cbd5e1' }}>
                         <span>{it.quantity}x {it.name}</span>
-                        <span>${it.quantity * it.unitPrice}</span>
+                        <span>{config?.currencySymbol || '$'}{it.quantity * it.unitPrice}</span>
                       </div>
                     ))}
                     <div style={{ borderTop: '1px solid rgba(255,255,255,0.1)', marginTop: '0.4rem', paddingTop: '0.4rem', fontWeight: 700, textAlign: 'right', color: '#10b981', fontSize: '0.9rem' }}>
-                      Total: ${order.total}
+                      Total: {config?.currencySymbol || '$'}{order.total}
                     </div>
                   </div>
 
@@ -791,7 +872,7 @@ export default function AdminPanel({
 
                 <div className="grid-2">
                   <div className="form-group">
-                    <label className="form-label">Precio ($)</label>
+                    <label className="form-label">Precio ({config?.currencySymbol || '$'})</label>
                     <input
                       type="number"
                       step="0.01"
@@ -820,7 +901,7 @@ export default function AdminPanel({
                   <input
                     type="text"
                     className="form-input"
-                    placeholder="Ej: Elaborado artesanalmente en Junín"
+                    placeholder="Ej: Elaborado artesanalmente"
                     value={newProduct.description}
                     onChange={(e) => setNewProduct({ ...newProduct, description: e.target.value })}
                   />
@@ -857,7 +938,7 @@ export default function AdminPanel({
                 <p style={{ fontSize: '0.8rem', color: '#94a3b8', marginBottom: '0.75rem' }}>{prod.description}</p>
 
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: '0.6rem' }}>
-                  <span style={{ fontSize: '1.15rem', fontWeight: 800, color: '#10b981' }}>${prod.price}</span>
+                  <span style={{ fontSize: '1.15rem', fontWeight: 800, color: '#10b981' }}>{config?.currencySymbol || '$'}{prod.price}</span>
                   <span style={{ fontSize: '0.8rem', color: '#94a3b8' }}>Stock: {prod.stock} un.</span>
                 </div>
               </div>
@@ -869,8 +950,8 @@ export default function AdminPanel({
       {/* TAB 4: MAPA EN VIVO */}
       {activeTab === 'mapa' && (
         <div className="card">
-          <h3 style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: '0.75rem' }}>Visualizador de Entregas y Repartidores en Junín</h3>
-          <DeliveryMap markers={mapMarkers} center={{ lat: -34.5932, lng: -60.9472 }} zoom={13} />
+          <h3 style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: '0.75rem' }}>Mapa de Entregas - {config?.storeName || 'Comercio'}</h3>
+          <DeliveryMap markers={mapMarkers} center={{ lat: baseLat, lng: baseLng }} zoom={13} />
         </div>
       )}
 
@@ -885,7 +966,7 @@ export default function AdminPanel({
               <div>
                 <h3 style={{ fontSize: '1.25rem', fontWeight: 800 }}>Copias de Seguridad y Restauración Completa</h3>
                 <p style={{ fontSize: '0.85rem', color: '#94a3b8' }}>
-                  Exporta e importa la base de datos completa (pedidos, repartidores, catálogo y claves haseadas).
+                  Exporta e importa la base de datos completa de este comercio.
                 </p>
               </div>
             </div>
@@ -905,15 +986,13 @@ export default function AdminPanel({
             )}
 
             <div className="grid-2" style={{ gap: '1.5rem' }}>
-              
-              {/* Opción 1: Exportar */}
               <div style={{ background: '#0f172a', padding: '1.5rem', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.08)' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem', color: '#10b981' }}>
                   <Download style={{ width: 20, height: 20 }} />
-                  <h4 style={{ fontSize: '1.05rem', fontWeight: 700 }}>Descargar Copia de Seguridad</h4>
+                  <h4 style={{ fontSize: '1.05rem', fontWeight: 700 }}>Descargar Backup</h4>
                 </div>
                 <p style={{ fontSize: '0.85rem', color: '#94a3b8', marginBottom: '1.25rem', lineHeight: '1.4' }}>
-                  Genera un archivo descargable `.json` con la información actual para guardarla en tu disco o enviar a otra computadora.
+                  Genera un archivo `.json` con todos los repartidores, pedidos y productos para respaldo.
                 </p>
                 <button className="btn btn-success" style={{ width: '100%' }} onClick={handleDownloadBackup}>
                   <Download style={{ width: 18, height: 18 }} />
@@ -921,14 +1000,13 @@ export default function AdminPanel({
                 </button>
               </div>
 
-              {/* Opción 2: Restaurar */}
               <div style={{ background: '#0f172a', padding: '1.5rem', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.08)' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem', color: '#6366f1' }}>
                   <Upload style={{ width: 20, height: 20 }} />
-                  <h4 style={{ fontSize: '1.05rem', fontWeight: 700 }}>Restaurar desde Backup</h4>
+                  <h4 style={{ fontSize: '1.05rem', fontWeight: 700 }}>Restaurar Backup</h4>
                 </div>
                 <p style={{ fontSize: '0.85rem', color: '#94a3b8', marginBottom: '1.25rem', lineHeight: '1.4' }}>
-                  Selecciona un archivo `.json` previo para restaurar todos los pedidos, repartidores y datos guardados.
+                  Carga un archivo `.json` para restaurar el sistema.
                 </p>
                 
                 <input 
@@ -945,12 +1023,210 @@ export default function AdminPanel({
                   onClick={() => fileInputRef.current && fileInputRef.current.click()}
                 >
                   <Upload style={{ width: 18, height: 18 }} />
-                  <span>Cargar y Restaurar Backup</span>
+                  <span>Cargar y Restaurar</span>
                 </button>
               </div>
-
             </div>
           </div>
+        </div>
+      )}
+
+      {/* TAB 6: MÓDULO COMERCIAL & VENDER APP A OTROS COMERCIOS (SaaS) */}
+      {activeTab === 'saas' && (
+        <div style={{ maxWidth: '900px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+          
+          {/* Formulario 1: Editar Marca de Mi Comercio */}
+          <div className="card" style={{ padding: '2rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.25rem' }}>
+              <div style={{ background: 'rgba(16,185,129,0.15)', color: '#10b981', padding: '0.6rem', borderRadius: '12px' }}>
+                <Store style={{ width: 28, height: 28 }} />
+              </div>
+              <div>
+                <h3 style={{ fontSize: '1.25rem', fontWeight: 800 }}>Personalización de Marca del Comercio (White-Label)</h3>
+                <p style={{ fontSize: '0.85rem', color: '#94a3b8' }}>
+                  Personaliza el nombre, eslogan, moneda y ubicación base para este negocio.
+                </p>
+              </div>
+            </div>
+
+            {configSaveMsg && (
+              <div style={{ background: 'rgba(16,185,129,0.15)', border: '1px solid rgba(16,185,129,0.3)', color: '#10b981', padding: '0.85rem', borderRadius: '8px', marginBottom: '1.25rem', fontSize: '0.9rem' }}>
+                {configSaveMsg}
+              </div>
+            )}
+
+            <form onSubmit={handleSaveStoreConfig}>
+              <div className="grid-2">
+                <div className="form-group">
+                  <label className="form-label">Nombre del Comercio / Negocio</label>
+                  <input
+                    type="text"
+                    className="form-input"
+                    placeholder="Ej: Pizzería Don Juan, Heladería Saverio, Yogur Griego"
+                    value={storeForm.storeName}
+                    onChange={(e) => setStoreForm({ ...storeForm, storeName: e.target.value })}
+                    required
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Eslogan / Rubro</label>
+                  <input
+                    type="text"
+                    className="form-input"
+                    placeholder="Ej: Lácteos & Postres Artesanales"
+                    value={storeForm.tagline}
+                    onChange={(e) => setStoreForm({ ...storeForm, tagline: e.target.value })}
+                  />
+                </div>
+              </div>
+
+              <div className="grid-2">
+                <div className="form-group">
+                  <label className="form-label">Teléfono de Contacto</label>
+                  <input
+                    type="text"
+                    className="form-input"
+                    placeholder="Ej: 2364-551122"
+                    value={storeForm.phone}
+                    onChange={(e) => setStoreForm({ ...storeForm, phone: e.target.value })}
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Símbolo de Moneda</label>
+                  <input
+                    type="text"
+                    className="form-input"
+                    placeholder="Ej: $, USD, EUR"
+                    value={storeForm.currencySymbol}
+                    onChange={(e) => setStoreForm({ ...storeForm, currencySymbol: e.target.value })}
+                  />
+                </div>
+              </div>
+
+              <div className="grid-2">
+                <div className="form-group">
+                  <label className="form-label">Latitud de Ciudad/Comercio</label>
+                  <input
+                    type="number"
+                    step="0.0001"
+                    className="form-input"
+                    value={storeForm.lat}
+                    onChange={(e) => setStoreForm({ ...storeForm, lat: e.target.value })}
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Longitud de Ciudad/Comercio</label>
+                  <input
+                    type="number"
+                    step="0.0001"
+                    className="form-input"
+                    value={storeForm.lng}
+                    onChange={(e) => setStoreForm({ ...storeForm, lng: e.target.value })}
+                  />
+                </div>
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Plan de Licencia Asignado</label>
+                <input
+                  type="text"
+                  className="form-input"
+                  placeholder="Ej: Plan Anual $25.000 / mes"
+                  value={storeForm.licensePlan}
+                  onChange={(e) => setStoreForm({ ...storeForm, licensePlan: e.target.value })}
+                />
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '1rem' }}>
+                <button type="submit" className="btn btn-success">
+                  Guardar Datos de Marca
+                </button>
+              </div>
+            </form>
+          </div>
+
+          {/* Formulario 2: Asistente para Vender e Instalar la App a un NUEVO CLIENTE */}
+          <div className="card" style={{ padding: '2rem', border: '1px solid rgba(99,102,241,0.4)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.25rem' }}>
+              <div style={{ background: 'linear-gradient(135deg, #6366f1, #10b981)', color: '#fff', padding: '0.6rem', borderRadius: '12px', boxShadow: '0 4px 12px rgba(99,102,241,0.3)' }}>
+                <Award style={{ width: 28, height: 28 }} />
+              </div>
+              <div>
+                <h3 style={{ fontSize: '1.25rem', fontWeight: 800 }}>🪄 Asistente para Vender a un Nuevo Cliente</h3>
+                <p style={{ fontSize: '0.85rem', color: '#94a3b8' }}>
+                  Crea e inicializa una aplicación limpia pre-configurada para un nuevo dueño de comercio con su cobro/tarifa.
+                </p>
+              </div>
+            </div>
+
+            <form onSubmit={handleCreateNewTenantClient}>
+              <div className="grid-2">
+                <div className="form-group">
+                  <label className="form-label">Nombre del Nuevo Comercio Cliente</label>
+                  <input
+                    type="text"
+                    className="form-input"
+                    placeholder="Ej: Rotisería El Sol, Panadería Junín"
+                    value={newTenantForm.storeName}
+                    onChange={(e) => setNewTenantForm({ ...newTenantForm, storeName: e.target.value })}
+                    required
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Eslogan del Comercio Cliente</label>
+                  <input
+                    type="text"
+                    className="form-input"
+                    placeholder="Ej: Envío a Domicilio Rápido"
+                    value={newTenantForm.tagline}
+                    onChange={(e) => setNewTenantForm({ ...newTenantForm, tagline: e.target.value })}
+                  />
+                </div>
+              </div>
+
+              <div className="grid-2">
+                <div className="form-group">
+                  <label className="form-label">Contraseña Inicial de Admin para el Cliente</label>
+                  <input
+                    type="password"
+                    className="form-input"
+                    placeholder="Clave inicial para el dueño (ej: cliente2026)"
+                    value={newTenantForm.adminPassword}
+                    onChange={(e) => setNewTenantForm({ ...newTenantForm, adminPassword: e.target.value })}
+                    required
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Tarifa / Precio a Cobrar Definido por Ti</label>
+                  <input
+                    type="text"
+                    className="form-input"
+                    placeholder="Ej: $20.000 / mes o Pago Único $150.000"
+                    value={newTenantForm.licensePlan}
+                    onChange={(e) => setNewTenantForm({ ...newTenantForm, licensePlan: e.target.value })}
+                  />
+                </div>
+              </div>
+
+              <div style={{ background: '#0f172a', padding: '1rem', borderRadius: '8px', margin: '1rem 0', fontSize: '0.85rem', color: '#cbd5e1' }}>
+                💡 <strong>¿Cómo entregas la app a tu cliente?</strong><br/>
+                Al hacer clic en <strong>"Crear Instancia para Nuevo Cliente"</strong>, la aplicación se configurará a nombre de su negocio. Puedes entregarle el link directo o exportarle su copia de seguridad pre-cargada.
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                <button type="submit" className="btn btn-primary">
+                  <Sparkles style={{ width: 18, height: 18 }} />
+                  <span>Crear Instancia para Nuevo Cliente</span>
+                </button>
+              </div>
+            </form>
+          </div>
+
         </div>
       )}
 

@@ -9,10 +9,12 @@ import {
   getProducts, 
   getOrders, 
   getAdminHash,
+  getConfig,
   saveDrivers, 
   saveProducts, 
   saveOrders, 
-  saveAdminHash 
+  saveAdminHash,
+  saveConfig
 } from './services/storage.js';
 
 export default function App() {
@@ -24,8 +26,9 @@ export default function App() {
   const [products, setProductsState] = useState([]);
   const [orders, setOrdersState] = useState([]);
   const [adminHash, setAdminHashState] = useState('');
+  const [config, setConfigState] = useState({});
 
-  // Inicialización de Almacenamiento Local y Semillas con manejo de errores
+  // Inicialización de Almacenamiento Local y Semillas
   useEffect(() => {
     async function loadData() {
       try {
@@ -34,6 +37,7 @@ export default function App() {
         setProductsState(getProducts());
         setOrdersState(getOrders());
         setAdminHashState(getAdminHash());
+        setConfigState(getConfig());
       } catch (err) {
         console.error("Error al inicializar almacenamiento:", err);
         setErrorMsg("Error inicializando datos locales: " + err.message);
@@ -64,11 +68,17 @@ export default function App() {
     saveAdminHash(newHash);
   };
 
+  const handleSaveConfig = (newConfig) => {
+    setConfigState(newConfig);
+    saveConfig(newConfig);
+  };
+
   const handleReloadFullSystem = () => {
     setDriversState(getDrivers());
     setProductsState(getProducts());
     setOrdersState(getOrders());
     setAdminHashState(getAdminHash());
+    setConfigState(getConfig());
   };
 
   if (!isReady) {
@@ -76,7 +86,7 @@ export default function App() {
       <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: '#0f172a', color: '#94a3b8', padding: '1rem', textAlign: 'center' }}>
         <div style={{ width: 40, height: 40, border: '4px solid #334155', borderTopColor: '#6366f1', borderRadius: '50%', animation: 'spin 1s linear infinite', marginBottom: '1rem' }} />
         <p style={{ fontSize: '1.1rem', fontWeight: 600, color: '#f8fafc' }}>Cargando Sistema de Repartos...</p>
-        <span style={{ fontSize: '0.85rem', marginTop: '0.4rem' }}>Yogur Griego Junín - Logística 2027</span>
+        <span style={{ fontSize: '0.85rem', marginTop: '0.4rem' }}>{config?.storeName || 'Logística Comercial'}</span>
         <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
       </div>
     );
@@ -87,6 +97,7 @@ export default function App() {
       <Navbar 
         activeRole={activeRole} 
         setActiveRole={setActiveRole} 
+        config={config}
       />
 
       <main className="app-container">
@@ -102,10 +113,12 @@ export default function App() {
             products={products}
             orders={orders}
             adminHash={adminHash}
+            config={config}
             onSaveDrivers={handleSaveDrivers}
             onSaveProducts={handleSaveProducts}
             onSaveOrders={handleSaveOrders}
             onSaveAdminHash={handleSaveAdminHash}
+            onSaveConfig={handleSaveConfig}
             onReloadFullSystem={handleReloadFullSystem}
           />
         )}

@@ -10,14 +10,23 @@ const STORAGE_KEYS = {
 
 const JUNIN_BASE = { lat: -34.5932, lng: -60.9472 };
 
+// Configuración predeterminada del comercio (White-Label)
+const DEFAULT_CONFIG = {
+  storeName: 'Yogur Griego Junín',
+  tagline: 'Sistema de Repartos & Logística',
+  phone: '2364-551122',
+  address: 'Centro de Distribución Junín',
+  currencySymbol: '$',
+  baseCoords: JUNIN_BASE,
+  licenseStatus: 'Licencia Comercial Activa',
+  licensePlan: 'Plan Pro Anual',
+  supportContact: 'contacto@logistica2027.com'
+};
+
 // Inicialización de almacenamiento con semillas
 export async function initializeStorage() {
   if (!localStorage.getItem(STORAGE_KEYS.CONFIG)) {
-    localStorage.setItem(STORAGE_KEYS.CONFIG, JSON.stringify({
-      storeName: 'Yogur Griego Junín',
-      storeAddress: 'Centro de Distribución Junín',
-      baseCoords: JUNIN_BASE
-    }));
+    localStorage.setItem(STORAGE_KEYS.CONFIG, JSON.stringify(DEFAULT_CONFIG));
   }
 
   if (!localStorage.getItem(STORAGE_KEYS.ADMIN_HASH)) {
@@ -148,7 +157,8 @@ export function getAdminHash() {
 }
 
 export function getConfig() {
-  return JSON.parse(localStorage.getItem(STORAGE_KEYS.CONFIG) || '{}');
+  const cfg = localStorage.getItem(STORAGE_KEYS.CONFIG);
+  return cfg ? { ...DEFAULT_CONFIG, ...JSON.parse(cfg) } : DEFAULT_CONFIG;
 }
 
 // Setters & CRUD
@@ -172,16 +182,39 @@ export function saveConfig(config) {
   localStorage.setItem(STORAGE_KEYS.CONFIG, JSON.stringify(config));
 }
 
-// --- BACKUP & RESTORE DE SISTEMA COMPLETO ---
+// --- PREPARAR INSTANCIA PARA NUEVO CLIENTE (MULTI-TENANT / WHITE-LABEL) ---
+export async function createTenantConfig(newTenantData) {
+  const { storeName, tagline, phone, address, currencySymbol, lat, lng, adminPassword, licensePlan } = newTenantData;
 
-/**
- * Genera un objeto JSON completo con toda la información del sistema.
- */
+  const newAdminHash = await hashPassword(adminPassword || 'admin123');
+
+  const newConfig = {
+    storeName: storeName || 'Nuevo Comercio',
+    tagline: tagline || 'Sistema de Gestión de Repartos',
+    phone: phone || '',
+    address: address || '',
+    currencySymbol: currencySymbol || '$',
+    baseCoords: { lat: parseFloat(lat) || -34.5932, lng: parseFloat(lng) || -60.9472 },
+    licenseStatus: 'Licencia Comercial Activa',
+    licensePlan: licensePlan || 'Plan Comercial Personalizado',
+    createdAt: new Date().toISOString()
+  };
+
+  saveConfig(newConfig);
+  saveAdminHash(newAdminHash);
+  saveDrivers([]);
+  saveProducts([]);
+  saveOrders([]);
+
+  return newConfig;
+}
+
+// --- BACKUP & RESTORE DE SISTEMA COMPLETO ---
 export function exportFullBackup() {
   const backupData = {
     version: '1.0',
     timestamp: new Date().toISOString(),
-    appName: 'Yogur Griego Junín - Logística 2027',
+    appName: 'SaaS Sistema de Repartos & Logística Comercial',
     data: {
       drivers: getDrivers(),
       products: getProducts(),
@@ -193,10 +226,6 @@ export function exportFullBackup() {
   return backupData;
 }
 
-/**
- * Restaura una copia de seguridad JSON importada.
- * @param {object} backupObject - Objeto de respaldo des-serializado
- */
 export function importFullBackup(backupObject) {
   if (!backupObject || !backupObject.data) {
     throw new Error('El archivo de copia de seguridad no tiene un formato válido.');
