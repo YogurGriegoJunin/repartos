@@ -1,11 +1,13 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { 
   Users, ShoppingBag, Truck, ShieldCheck, Plus, Trash2, Edit3, KeyRound, 
-  MapPin, CheckCircle, Clock, AlertTriangle, Phone, LogIn, Lock, Sparkles, Filter 
+  MapPin, CheckCircle, Clock, AlertTriangle, Phone, LogIn, Lock, Sparkles, Filter,
+  Download, Upload, RefreshCw, Database
 } from 'lucide-react';
 import DeliveryMap from './DeliveryMap.jsx';
 import PasswordModal from './PasswordModal.jsx';
 import { verifyPassword, hashPassword } from '../services/crypto.js';
+import { exportFullBackup, importFullBackup } from '../services/storage.js';
 
 export default function AdminPanel({
   drivers,
@@ -15,19 +17,20 @@ export default function AdminPanel({
   onSaveDrivers,
   onSaveProducts,
   onSaveOrders,
-  onSaveAdminHash
+  onSaveAdminHash,
+  onReloadFullSystem // Callback opcional para refrescar todo el sistema
 }) {
   // Estado de Autenticación de Admin
   const [isAdminAuthenticated, setIsAdminAuthenticated] = useState(false);
   const [adminLoginPass, setAdminLoginPass] = useState('');
   const [loginError, setLoginError] = useState('');
 
-  // Pestaña activa en Admin (pedidos | repartidores | productos | mapa)
+  // Pestaña activa en Admin (pedidos | repartidores | productos | mapa | backup)
   const [activeTab, setActiveTab] = useState('pedidos');
 
   // Modales
   const [isPassModalOpen, setIsPassModalOpen] = useState(false);
-  const [passTarget, setPassTarget] = useState(null); // { type: 'admin' } o { type: 'driver', driverId: '...' }
+  const [passTarget, setPassTarget] = useState(null);
 
   // Formulario Nuevo Repartidor
   const [newDriver, setNewDriver] = useState({ name: '', phone: '', vehicle: '', password: '' });
@@ -52,8 +55,10 @@ export default function AdminPanel({
   const [selectedProdQty, setSelectedProdQty] = useState(1);
   const [showOrderForm, setShowOrderForm] = useState(false);
 
-  // Filtros
+  // Filtros y Respaldos
   const [orderFilter, setOrderFilter] = useState('Todos');
+  const [backupMessage, setBackupMessage] = useState({ type: '', text: '' });
+  const fileInputRef = useRef(null);
 
   // Login de Administrador
   const handleAdminLogin = async (e) => {
@@ -73,7 +78,6 @@ export default function AdminPanel({
     e.preventDefault();
     if (!newDriver.name || !newDriver.phone || !newDriver.password) return;
     
-    // Hash seguro de la contraseña inicial del repartidor
     const passwordHash = await hashPassword(newDriver.password);
 
     const createdDriver = {
@@ -201,6 +205,48 @@ export default function AdminPanel({
     }
   };
 
+  // --- BACKUP & RESTAURACIÓN ---
+  const handleDownloadBackup = () => {
+    try {
+      const backupObj = exportFullBackup();
+      const jsonString = JSON.stringify(backupObj, null, 2);
+      const blob = new Blob([jsonString], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+
+      const dateStr = new Date().toISOString().split('T')[0];
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `backup_logistica_junin_${dateStr}.json`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
+      setBackupMessage({ type: 'success', text: 'Copia de seguridad descargada exitosamente en formato JSON.' });
+    } catch (err) {
+      setBackupMessage({ type: 'error', text: 'Error al generar la copia de seguridad: ' + err.message });
+    }
+  };
+
+  const handleRestoreBackupFile = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      try {
+        const parsed = JSON.parse(evt.target.result);
+        importFullBackup(parsed);
+        setBackupMessage({ type: 'success', text: '¡Sistema restaurado con éxito desde la copia de seguridad!' });
+        if (onReloadFullSystem) onReloadFullSystem();
+        setTimeout(() => window.location.reload(), 1200);
+      } catch (err) {
+        setBackupMessage({ type: 'error', text: 'Error al restaurar: El archivo no tiene un formato válido.' });
+      }
+    };
+    reader.readAsText(file);
+  };
+
   // --- CAMBIO DE CONTRASEÑA ---
   const handleSavePasswordFromModal = async (newHash, target) => {
     if (target.type === 'admin') {
@@ -248,10 +294,6 @@ export default function AdminPanel({
               <span>Iniciar Sesión de Admin</span>
             </button>
           </form>
-
-          <span style={{ display: 'block', marginTop: '1.5rem', fontSize: '0.75rem', color: '#64748b' }}>
-            🔒 Las contraseñas están haseadas con SHA-256 y nunca se almacenan en texto plano.
-          </span>
         </div>
       </div>
     );
@@ -262,7 +304,7 @@ export default function AdminPanel({
     ? orders 
     : orders.filter(o => o.status === orderFilter);
 
-  // Marcadores de Mapa para vista general
+  // Marcadores de Mapa
   const mapMarkers = [
     { type: 'store', lat: -34.5932, lng: -60.9472, title: 'Yogur Griego Junín (Local Base)', popup: 'Centro de Salida' },
     ...drivers.map(d => ({ type: 'driver', lat: d.lat, lng: d.lng, title: `Repartidor: ${d.name}`, popup: `Tel: ${d.phone} | Estado: ${d.status}` })),
@@ -280,11 +322,11 @@ export default function AdminPanel({
           </div>
           <div>
             <h2 style={{ fontSize: '1.2rem', fontWeight: 700 }}>Administración Central</h2>
-            <span style={{ fontSize: '0.8rem', color: '#94a3b8' }}>Logística de Envíos & Catálogo</span>
+            <span style={{ fontSize: '0.8rem', color: '#94a3b8' }}>Logística de Envíos & Respaldos</span>
           </div>
         </div>
 
-        <div style={{ display: 'flex', gap: '0.75rem' }}>
+        <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
           <button
             className="btn btn-secondary btn-sm"
             onClick={() => {
@@ -333,6 +375,13 @@ export default function AdminPanel({
           onClick={() => setActiveTab('mapa')}
         >
           🗺️ Mapa en Vivo
+        </button>
+
+        <button
+          className={`tab-btn ${activeTab === 'backup' ? 'active' : ''}`}
+          onClick={() => setActiveTab('backup')}
+        >
+          💾 Respaldos & Copia de Seguridad
         </button>
       </div>
 
@@ -516,7 +565,6 @@ export default function AdminPanel({
                     {order.customerPhone}
                   </p>
 
-                  {/* Resumen de Ítems */}
                   <div style={{ background: '#0f172a', padding: '0.6rem 0.8rem', borderRadius: '6px', fontSize: '0.8rem', marginBottom: '0.75rem' }}>
                     {order.items.map((it, idx) => (
                       <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', color: '#cbd5e1' }}>
@@ -529,10 +577,9 @@ export default function AdminPanel({
                     </div>
                   </div>
 
-                  {/* Controles de Estado y Repartidor */}
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', marginBottom: '0.75rem' }}>
                     <div>
-                      <span className="form-label" style={{ fontSize: '0.7rem' }}>Repartidor Asignado:</span>
+                      <span className="form-label" style={{ fontSize: '0.7rem' }}>Repartidor:</span>
                       <select 
                         className="form-select" 
                         style={{ padding: '0.3rem 0.5rem', fontSize: '0.8rem' }}
@@ -589,7 +636,6 @@ export default function AdminPanel({
             </button>
           </div>
 
-          {/* Formulario Crear Repartidor */}
           {showDriverForm && (
             <div className="card" style={{ marginBottom: '1.5rem', border: '1px solid var(--primary)' }}>
               <h4 style={{ fontSize: '1rem', fontWeight: 700, marginBottom: '1rem', color: '#6366f1' }}>Registrar Repartidor</h4>
@@ -657,7 +703,6 @@ export default function AdminPanel({
             </div>
           )}
 
-          {/* Grid de Repartidores */}
           <div className="grid-3">
             {drivers.map(driver => (
               <div key={driver.id} className="card">
@@ -715,7 +760,6 @@ export default function AdminPanel({
             </button>
           </div>
 
-          {/* Formulario Crear Producto */}
           {showProductForm && (
             <div className="card" style={{ marginBottom: '1.5rem', border: '1px solid var(--primary)' }}>
               <h4 style={{ fontSize: '1rem', fontWeight: 700, marginBottom: '1rem', color: '#6366f1' }}>Agregar Ítem al Catálogo</h4>
@@ -794,7 +838,6 @@ export default function AdminPanel({
             </div>
           )}
 
-          {/* Grid de Productos */}
           <div className="grid-3">
             {products.map(prod => (
               <div key={prod.id} className="card">
@@ -828,6 +871,86 @@ export default function AdminPanel({
         <div className="card">
           <h3 style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: '0.75rem' }}>Visualizador de Entregas y Repartidores en Junín</h3>
           <DeliveryMap markers={mapMarkers} center={{ lat: -34.5932, lng: -60.9472 }} zoom={13} />
+        </div>
+      )}
+
+      {/* TAB 5: BACKUP & RESTAURACIÓN */}
+      {activeTab === 'backup' && (
+        <div style={{ maxWidth: '800px', margin: '0 auto' }}>
+          <div className="card" style={{ padding: '2rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.8rem', marginBottom: '1.25rem' }}>
+              <div style={{ background: 'rgba(99,102,241,0.15)', color: '#6366f1', padding: '0.6rem', borderRadius: '12px' }}>
+                <Database style={{ width: 28, height: 28 }} />
+              </div>
+              <div>
+                <h3 style={{ fontSize: '1.25rem', fontWeight: 800 }}>Copias de Seguridad y Restauración Completa</h3>
+                <p style={{ fontSize: '0.85rem', color: '#94a3b8' }}>
+                  Exporta e importa la base de datos completa (pedidos, repartidores, catálogo y claves haseadas).
+                </p>
+              </div>
+            </div>
+
+            {backupMessage.text && (
+              <div style={{ 
+                background: backupMessage.type === 'success' ? 'rgba(16,185,129,0.15)' : 'rgba(239,68,68,0.15)',
+                border: backupMessage.type === 'success' ? '1px solid rgba(16,185,129,0.3)' : '1px solid rgba(239,68,68,0.3)',
+                color: backupMessage.type === 'success' ? '#10b981' : '#ef4444',
+                padding: '0.85rem 1rem',
+                borderRadius: '8px',
+                marginBottom: '1.5rem',
+                fontSize: '0.9rem'
+              }}>
+                {backupMessage.text}
+              </div>
+            )}
+
+            <div className="grid-2" style={{ gap: '1.5rem' }}>
+              
+              {/* Opción 1: Exportar */}
+              <div style={{ background: '#0f172a', padding: '1.5rem', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.08)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem', color: '#10b981' }}>
+                  <Download style={{ width: 20, height: 20 }} />
+                  <h4 style={{ fontSize: '1.05rem', fontWeight: 700 }}>Descargar Copia de Seguridad</h4>
+                </div>
+                <p style={{ fontSize: '0.85rem', color: '#94a3b8', marginBottom: '1.25rem', lineHeight: '1.4' }}>
+                  Genera un archivo descargable `.json` con la información actual para guardarla en tu disco o enviar a otra computadora.
+                </p>
+                <button className="btn btn-success" style={{ width: '100%' }} onClick={handleDownloadBackup}>
+                  <Download style={{ width: 18, height: 18 }} />
+                  <span>Descargar Backup (.JSON)</span>
+                </button>
+              </div>
+
+              {/* Opción 2: Restaurar */}
+              <div style={{ background: '#0f172a', padding: '1.5rem', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.08)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem', color: '#6366f1' }}>
+                  <Upload style={{ width: 20, height: 20 }} />
+                  <h4 style={{ fontSize: '1.05rem', fontWeight: 700 }}>Restaurar desde Backup</h4>
+                </div>
+                <p style={{ fontSize: '0.85rem', color: '#94a3b8', marginBottom: '1.25rem', lineHeight: '1.4' }}>
+                  Selecciona un archivo `.json` previo para restaurar todos los pedidos, repartidores y datos guardados.
+                </p>
+                
+                <input 
+                  type="file" 
+                  accept=".json" 
+                  ref={fileInputRef} 
+                  onChange={handleRestoreBackupFile} 
+                  style={{ display: 'none' }} 
+                />
+
+                <button 
+                  className="btn btn-primary" 
+                  style={{ width: '100%' }} 
+                  onClick={() => fileInputRef.current && fileInputRef.current.click()}
+                >
+                  <Upload style={{ width: 18, height: 18 }} />
+                  <span>Cargar y Restaurar Backup</span>
+                </button>
+              </div>
+
+            </div>
+          </div>
         </div>
       )}
 

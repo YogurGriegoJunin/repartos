@@ -64,6 +64,13 @@ export default function App() {
     saveAdminHash(newHash);
   };
 
+  const handleReloadFullSystem = () => {
+    setDriversState(getDrivers());
+    setProductsState(getProducts());
+    setOrdersState(getOrders());
+    setAdminHashState(getAdminHash());
+  };
+
   if (!isReady) {
     return (
       <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: '#0f172a', color: '#94a3b8', padding: '1rem', textAlign: 'center' }}>
@@ -99,6 +106,7 @@ export default function App() {
             onSaveProducts={handleSaveProducts}
             onSaveOrders={handleSaveOrders}
             onSaveAdminHash={handleSaveAdminHash}
+            onReloadFullSystem={handleReloadFullSystem}
           />
         )}
 

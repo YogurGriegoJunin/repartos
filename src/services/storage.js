@@ -8,28 +8,23 @@ const STORAGE_KEYS = {
   CONFIG: 'logistica_config_v1'
 };
 
-// Coordenadas base (Junín, BsAs)
 const JUNIN_BASE = { lat: -34.5932, lng: -60.9472 };
 
-// Inicialización asíncrona de datos semilla con contraseñas encriptadas
+// Inicialización de almacenamiento con semillas
 export async function initializeStorage() {
-  // Configuración por defecto
   if (!localStorage.getItem(STORAGE_KEYS.CONFIG)) {
     localStorage.setItem(STORAGE_KEYS.CONFIG, JSON.stringify({
-      googleMapsApiKey: '',
       storeName: 'Yogur Griego Junín',
       storeAddress: 'Centro de Distribución Junín',
       baseCoords: JUNIN_BASE
     }));
   }
 
-  // Hash de Admin por defecto: "admin123"
   if (!localStorage.getItem(STORAGE_KEYS.ADMIN_HASH)) {
     const initialAdminHash = await hashPassword('admin123');
     localStorage.setItem(STORAGE_KEYS.ADMIN_HASH, initialAdminHash);
   }
 
-  // Repartidores Semilla con hash de "reparto123"
   if (!localStorage.getItem(STORAGE_KEYS.DRIVERS)) {
     const defaultDriverHash = await hashPassword('reparto123');
     const defaultDrivers = [
@@ -57,7 +52,6 @@ export async function initializeStorage() {
     localStorage.setItem(STORAGE_KEYS.DRIVERS, JSON.stringify(defaultDrivers));
   }
 
-  // Productos del comercio
   if (!localStorage.getItem(STORAGE_KEYS.PRODUCTS)) {
     const defaultProducts = [
       {
@@ -96,7 +90,6 @@ export async function initializeStorage() {
     localStorage.setItem(STORAGE_KEYS.PRODUCTS, JSON.stringify(defaultProducts));
   }
 
-  // Pedidos de prueba
   if (!localStorage.getItem(STORAGE_KEYS.ORDERS)) {
     const defaultOrders = [
       {
@@ -177,4 +170,45 @@ export function saveAdminHash(hash) {
 
 export function saveConfig(config) {
   localStorage.setItem(STORAGE_KEYS.CONFIG, JSON.stringify(config));
+}
+
+// --- BACKUP & RESTORE DE SISTEMA COMPLETO ---
+
+/**
+ * Genera un objeto JSON completo con toda la información del sistema.
+ */
+export function exportFullBackup() {
+  const backupData = {
+    version: '1.0',
+    timestamp: new Date().toISOString(),
+    appName: 'Yogur Griego Junín - Logística 2027',
+    data: {
+      drivers: getDrivers(),
+      products: getProducts(),
+      orders: getOrders(),
+      adminHash: getAdminHash(),
+      config: getConfig()
+    }
+  };
+  return backupData;
+}
+
+/**
+ * Restaura una copia de seguridad JSON importada.
+ * @param {object} backupObject - Objeto de respaldo des-serializado
+ */
+export function importFullBackup(backupObject) {
+  if (!backupObject || !backupObject.data) {
+    throw new Error('El archivo de copia de seguridad no tiene un formato válido.');
+  }
+
+  const { drivers, products, orders, adminHash, config } = backupObject.data;
+
+  if (Array.isArray(drivers)) saveDrivers(drivers);
+  if (Array.isArray(products)) saveProducts(products);
+  if (Array.isArray(orders)) saveOrders(orders);
+  if (typeof adminHash === 'string' && adminHash) saveAdminHash(adminHash);
+  if (config && typeof config === 'object') saveConfig(config);
+
+  return true;
 }
